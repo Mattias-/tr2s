@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Upload TrainerRoad to Strava</title>
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/nprogress/0.1.2/nprogress.min.css">
+    <style type="text/css">
+      .poweredbystrava {
+        background-image: url(static/StravaLogo.png);
+        background-position: 0px -20px;
+        background-repeat: no-repeat;
+        background-color: transparent;
+        width: 95px;
+        height: 20px !important;
+        text-indent: -10000px;
+        padding: 0px !important;
+        display: inline-block !important;
+      }
+      .stravabutton {
+        background-color:#dd4814;
+        border-color:#cd3804;
+      }
+      .stravabutton:hover {
+        background-color:#cd3804;
+        border-color:#cd3804;
+      }
+      /* http://www.designcouch.com/home/why/2013/05/23/dead-simple-pure-css-loading-spinner/ */
+      .inlinespinner {
+        height:16px;
+        width:16px;
+        -webkit-animation: rotation .6s infinite linear;
+        -moz-animation: rotation .6s infinite linear;
+        -o-animation: rotation .6s infinite linear;
+        animation: rotation .6s infinite linear;
+        border:2px solid rgba(0,0,0,.15);
+        border-top:2px solid rgba(0,0,0,1);
+        border-radius:100%;
+        display:inline-block;
+      }
+
+      @-webkit-keyframes rotation {
+        from {-webkit-transform: rotate(0deg);}
+        to {-webkit-transform: rotate(359deg);}
+      }
+
+      @-moz-keyframes rotation {
+        from {-moz-transform: rotate(0deg);}
+        to {-moz-transform: rotate(359deg);}
+      }
+
+      @-o-keyframes rotation {
+        from {-o-transform: rotate(0deg);}
+        to {-o-transform: rotate(359deg);}
+      }
+
+      @keyframes rotation {
+        from {transform: rotate(0deg);}
+        to {transform: rotate(359deg);}
+      }
+   </style>
+  </head>
+  <body>
+  <div class="container">
+    <div class="row">
+      <div class="col-sm-3">
+        <div class="input-group {% if tr_authed %} has-success {% else %} has-error {% endif %}">
+          <span class="input-group-addon">
+            <img src="http://www.trainerroad.com/assets/images/favicon.ico"/>
+          </span>
+          <input type="text" id="tr-username-input" class="form-control" placeholder="TR Username" value="{{ tr_username|default('', true) }}">
+          <span class="input-group-addon">
+            <span class="glyphicon {% if tr_authed %} glyphicon-ok {% else %} glyphicon-remove {% endif %}"></span>
+          </span>
+        </div>
+      </div>
+      {% if strava_authed %}
+      <div class="col-sm-4">
+        <a class="pull-left" style="margin-right:0.5em" href="#">
+          <img src="{{ strava_athlete.profile_medium }}" height="30px"/>
+        </a>
+        <p style="line-height:30px">{{ strava_athlete.firstname }}</p>
+      </div>
+      {% else %}
+      <button type="button" class="btn btn-primary stravabutton">
+        Connect with <span class="poweredbystrava">Strava</span>
+      </button>
+      {% endif %}
+    </div>
+    {% if strava_authed and tr_authed %}
+    <table class="table table-condensed">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>TrainerRoad</th>
+          <th>Strava</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ride in ride_list %}
+        <tr{{ {'class':'success'}|xmlattr if ride.uploaded_to_strava }} {{ {'data-trid':ride.tr_id}|xmlattr }}>
+            <td><time class="timeago" datetime="{{ ride.start_date_utc|default(ride.start_date) }}">{{ ride.start_date }}</time></td>
+            <td><a href="http://www.trainerroad.com/cycling/rides/{{ ride.tr_id }}">{{ ride.tr_name }}</a></td>
+            <td>
+            {% if ride.uploaded_to_strava %}
+                <a href="http://app.strava.com/activities/{{ ride.strava_id }}">{{ ride.strava_name }}</a>
+            {% else %}
+                <input type="checkbox" checked class="upload-select" value="{{ ride.tr_id }}">
+            {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <button type="button" id="upload-sel" class="btn btn-primary stravabutton">
+      Upload selected rides<br>to <span class="poweredbystrava">Strava</span>
+    </button>
+    {% else %}
+    {{ tr_authed }} {{ strava_authed }}
+    {% endif %}
+    </div> <!-- container -->
+    <pre class="pre-scrollable">{{ log|pprint }}</pre>
+  </body>
+  <script src="//code.jquery.com/jquery-1.10.2.min.js"></script>
+  <script src="//netdna.bootstrapcdn.com/bootstrap/3.0.3/js/bootstrap.min.js"></script>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/jquery-timeago/1.1.0/jquery.timeago.min.js"></script>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/nprogress/0.1.2/nprogress.min.js"></script>
+  <script>
+  $(document).ready(function() {
+    $("time.timeago").timeago();
+  });
+
+  $(document).ajaxStart(NProgress.start).ajaxStop(NProgress.done);
+
+  $("#upload-sel").click(function(){
+    $sel = $(".upload-select:checked").parent();
+    $sel.text('Waiting');
+    $sel.parent().removeClass("success danger").addClass("warning");
+    $sel.each(function(){
+      $this = $(this);
+      $this.html('<div class="inlinespinner"></div>Processing');
+      $this.parent().removeClass("success danger").addClass("warning");
+      var trMemberId = "{{ tr_member_id }}";
+      var url = "/upload/" + trMemberId + "/" + $this.parent().data('trid');
+      console.log(url);
+      $that = $this;
+      $.ajax(url)
+      .done(function(data, status, o){
+        $that.html('Uploaded <a href="/">(Reload page)');
+        $that.parent().removeClass("warning danger").addClass("success");
+      })
+      .fail(function(o, status, error){
+        $that.html('Error <code>'+ error +'</code>');
+        $that.parent().removeClass("success danger").addClass("danger");
+      })
+      .always(function(data, status, err){
+        console.log(data, status, err);
+      });
+    });
+    });
+
+  var delay = (function(){
+    var timer = 0;
+    return function(callback, ms){
+      clearTimeout (timer);
+      timer = setTimeout(callback, ms);
+    };
+  })();
+
+  $("#tr-username-input").keyup(function(e){
+    username = e.target.value;
+    delay(function(){
+      console.log('Entered username:', username);
+      var url = "/set_tr/" + username;
+      $parent = $(e.target).parent();
+      $gi = $parent.find(".glyphicon");
+      $.ajax(url).done(function(data, status, o){
+        if(data.result){
+          console.log('Set tr user to:', data.username);
+          $parent.removeClass("has-error").addClass("has-success");
+          $gi.removeClass("glyphicon-remove").addClass("glyphicon-ok");
+        } else {
+          console.log('Could not find tr user:', data.username);
+          $parent.removeClass("has-success").addClass("has-error");
+          $gi.removeClass("glyphicon-ok").addClass("glyphicon-remove");
+        }
+      }).fail(function(o, status, error){
+        console.log('Error getting tr user');
+        $parent.removeClass("has-success").addClass("has-error");
+        $gi.removeClass("glyphicon-ok").addClass("glyphicon-remove");
+      });
+    }, 1000);
+  });
+
+  </script>
+</html>
