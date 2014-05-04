@@ -6,7 +6,7 @@ import re
 
 def get_tr_rides(member_id=None):
     payload = {"IsDescending":True,
-               "PageSize":10,
+               "PageSize":30,
                "PageNumber":0,
                "TotalCount":1,
                "SortProperty":"Newest",

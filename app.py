@@ -56,7 +56,7 @@ def index():
                  'uploaded_to_strava': False}
             ride_list.append(d)
         payload = {'access_token': strava_token,
-                   'per_page': 10  #TODO arbitrary number, be smart?
+                   'per_page': 30  #TODO arbitrary number, be smart?
                   }
         r = strava.request('athlete/activities', data=payload)
         if r.status == 200:
